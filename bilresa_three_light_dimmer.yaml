@@ -2,9 +2,21 @@ blueprint:
   name: BILRESA Scroll Wheel — Three-Light Dimmer
   description: >
     Dim three lights with an IKEA BILRESA scroll wheel (Matter).
-    The wheel's built-in dot selector (three dots) picks which of the
-    three lights the rotation will dim. Rotating CW brightens the
-    currently-selected light; CCW dims it.
+    The wheel's physical dot selector picks which of three lights
+    the rotation dims. Short-press on a dot button toggles that
+    dot's light on/off.
+
+      Rotation CW / CCW
+        Dot 1 → button_1 / button_2
+        Dot 2 → button_4 / button_5
+        Dot 3 → button_7 / button_8
+      Short press (toggle)
+        Dot 1 → button_3
+        Dot 2 → button_6
+        Dot 3 → button_9
+
+    Entities are hardcoded. If you have more than one BILRESA
+    scroll wheel in HA, duplicate this blueprint and adjust.
   domain: automation
   input:
     light_dot1:
@@ -31,74 +43,74 @@ blueprint:
           min: 1
           max: 25
           unit_of_measurement: "%"
-    cw_event:
-      name: Clockwise rotation event entity
-      default: event.bilresa_scroll_wheel_button_1
-      selector:
-        entity:
-          domain: event
-    ccw_event:
-      name: Counter-clockwise rotation event entity
-      default: event.bilresa_scroll_wheel_button_2
-      selector:
-        entity:
-          domain: event
-    dot1_event:
-      name: Dot 1 selector event entity
-      default: event.bilresa_scroll_wheel_button_7
-      selector:
-        entity:
-          domain: event
-    dot2_event:
-      name: Dot 2 selector event entity
-      default: event.bilresa_scroll_wheel_button_8
-      selector:
-        entity:
-          domain: event
-    dot3_event:
-      name: Dot 3 selector event entity
-      default: event.bilresa_scroll_wheel_button_9
-      selector:
-        entity:
-          domain: event
 
 mode: queued
 max: 10
 max_exceeded: silent
-
-trigger:
-  - platform: state
-    entity_id: !input cw_event
-    id: cw
-  - platform: state
-    entity_id: !input ccw_event
-    id: ccw
 
 variables:
   light_dot1: !input light_dot1
   light_dot2: !input light_dot2
   light_dot3: !input light_dot3
   dim_step: !input dim_step
-  dot1_event: !input dot1_event
-  dot2_event: !input dot2_event
-  dot3_event: !input dot3_event
-  active_light: >-
-    {% set t1 = states(dot1_event) %}
-    {% set t2 = states(dot2_event) %}
-    {% set t3 = states(dot3_event) %}
-    {% set candidates = [
-      (t1 if t1 not in ['unknown','unavailable'] else '', light_dot1),
-      (t2 if t2 not in ['unknown','unavailable'] else '', light_dot2),
-      (t3 if t3 not in ['unknown','unavailable'] else '', light_dot3)
-    ] %}
-    {% set best = candidates | max(attribute=0) %}
-    {{ best[1] if best[0] else light_dot1 }}
-  ticks: "{{ trigger.to_state.attributes.event_type.split('_')[-1] | int(1) }}"
-  delta: "{{ ticks * dim_step * (1 if trigger.id == 'cw' else -1) }}"
+
+trigger:
+  # Rotation — per-dot CW and CCW
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_1
+    id: dot1_cw
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_2
+    id: dot1_ccw
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_4
+    id: dot2_cw
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_5
+    id: dot2_ccw
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_7
+    id: dot3_cw
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_8
+    id: dot3_ccw
+  # Short press on dot buttons
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_3
+    id: dot1_press
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_6
+    id: dot2_press
+  - platform: state
+    entity_id: event.bilresa_scroll_wheel_button_9
+    id: dot3_press
 
 action:
-  - service: light.turn_on
-    target:
-      entity_id: "{{ active_light }}"
-    data:
-      brightness_step_pct: "{{ delta }}"
+  - variables:
+      dot: "{{ trigger.id.split('_')[0] }}"
+      target_light: >-
+        {% if dot == 'dot1' %}{{ light_dot1 }}
+        {% elif dot == 'dot2' %}{{ light_dot2 }}
+        {% else %}{{ light_dot3 }}{% endif %}
+  - choose:
+      # Rotation: dim the target light
+      - conditions:
+          - "{{ trigger.id.endswith('_cw') or trigger.id.endswith('_ccw') }}"
+        sequence:
+          - variables:
+              sign: "{{ 1 if trigger.id.endswith('_cw') else -1 }}"
+              ticks: "{{ trigger.to_state.attributes.event_type.split('_')[-1] | int(1) }}"
+              delta: "{{ ticks * dim_step * sign }}"
+          - service: light.turn_on
+            target:
+              entity_id: "{{ target_light }}"
+            data:
+              brightness_step_pct: "{{ delta }}"
+      # Short press: toggle the target light (ignore double/triple/long)
+      - conditions:
+          - "{{ trigger.id.endswith('_press') }}"
+          - "{{ trigger.to_state.attributes.event_type == 'multi_press_1' }}"
+        sequence:
+          - service: light.toggle
+            target:
+              entity_id: "{{ target_light }}"
