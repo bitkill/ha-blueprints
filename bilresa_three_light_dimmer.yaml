@@ -45,12 +45,16 @@ blueprint:
           domain: light
     dim_step:
       name: Brightness per tick (%)
-      description: How much each rotation tick changes brightness.
-      default: 10
+      description: >
+        How much each rotation tick changes brightness. Keep this low —
+        fast rotations are reported as multi-tick bursts (e.g.
+        multi_press_7), and the total change per event is capped at
+        ±50% regardless of this setting.
+      default: 5
       selector:
         number:
           min: 1
-          max: 25
+          max: 15
           unit_of_measurement: "%"
 
 mode: queued
@@ -94,7 +98,8 @@ action:
           - variables:
               sign: "{{ 1 if slot == 1 else -1 }}"
               ticks: "{{ event_type.split('_')[-1] | int(1) }}"
-              delta: "{{ ticks * dim_step * sign }}"
+              raw_delta: "{{ ticks * dim_step * sign }}"
+              delta: "{{ [-50, [50, raw_delta] | min] | max }}"
           - service: light.turn_on
             target:
               entity_id: "{{ target_light }}"
