@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BILRESA Live Debug</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #0d1117; color: #e6edf3;
+    min-height: 100vh;
+  }
+  h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .status { font-size: 12px; color: #8b949e; margin-bottom: 24px; }
+  .status.ok { color: #3fb950; }
+  .status.err { color: #f85149; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 1200px;
+  }
+
+  .panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .panel h2 {
+    margin: 0 0 16px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8b949e;
+  }
+
+  .dots {
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+    padding: 24px 0;
+  }
+  .dot {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 2px solid #30363d;
+    background: #0d1117;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 600;
+    color: #484f58;
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  .dot.active {
+    background: #1f6feb;
+    border-color: #58a6ff;
+    color: #fff;
+    box-shadow: 0 0 24px rgba(88, 166, 255, 0.5);
+  }
+  .dot.flash {
+    transform: scale(1.15);
+    background: #fb8500;
+    border-color: #fb8500;
+    color: #fff;
+  }
+  .dot .label {
+    position: absolute; bottom: -22px; left: 0; right: 0;
+    text-align: center; font-size: 10px; color: #8b949e;
+    font-weight: 400; letter-spacing: 0.05em;
+  }
+
+  .rotation {
+    display: flex; align-items: center; justify-content: center;
+    height: 120px;
+    position: relative;
+  }
+  .wheel {
+    width: 96px; height: 96px;
+    border: 3px solid #30363d;
+    border-radius: 50%;
+    position: relative;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  .wheel::before {
+    content: '';
+    position: absolute; top: 4px; left: 50%;
+    width: 6px; height: 16px; margin-left: -3px;
+    background: #58a6ff;
+    border-radius: 3px;
+  }
+  .wheel.cw {
+    border-color: #3fb950;
+    box-shadow: 0 0 24px rgba(63, 185, 80, 0.5);
+  }
+  .wheel.ccw {
+    border-color: #f85149;
+    box-shadow: 0 0 24px rgba(248, 81, 73, 0.5);
+  }
+  .rotation-info {
+    position: absolute;
+    top: 8px; right: 8px;
+    font-size: 11px;
+    color: #8b949e;
+    text-align: right;
+  }
+  .rotation-info .dir { font-weight: 600; font-size: 14px; }
+  .dir.cw { color: #3fb950; }
+  .dir.ccw { color: #f85149; }
+
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .btn-box {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 11px;
+    transition: all 0.15s ease;
+  }
+  .btn-box.hit {
+    border-color: #fb8500;
+    background: #2d1a0a;
+  }
+  .btn-box .name { font-weight: 600; color: #e6edf3; }
+  .btn-box .et { color: #8b949e; margin-top: 3px; font-size: 10px; }
+  .btn-box .ts { color: #6e7681; font-size: 9px; margin-top: 2px; }
+
+  .log {
+    max-height: 400px;
+    overflow-y: auto;
+    font-size: 11px;
+  }
+  .log-entry {
+    padding: 6px 0;
+    border-bottom: 1px solid #21262d;
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 12px;
+  }
+  .log-entry .t { color: #6e7681; }
+  .log-entry .m { color: #e6edf3; }
+  .log-entry.rot .m { color: #58a6ff; }
+  .log-entry.dot .m { color: #fb8500; }
+  .log-entry.sens .m { color: #6e7681; font-size: 10px; }
+
+  .sofa, .target-info {
+    display: flex; justify-content: space-between;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid #21262d;
+  }
+  .sofa .lbl, .target-info .lbl { color: #8b949e; }
+  .sofa .val, .target-info .val { color: #e6edf3; }
+  .val.unavailable { color: #f85149; }
+  .val.active { color: #3fb950; font-weight: 600; }
+
+  .auth-panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 640px;
+    margin-bottom: 24px;
+  }
+  .auth-panel h2 {
+    margin: 0 0 8px;
+    font-size: 13px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #8b949e;
+  }
+  .auth-panel p { margin: 0 0 12px; font-size: 12px; color: #8b949e; }
+  .auth-panel input[type=password],
+  .auth-panel input[type=text] {
+    width: 100%;
+    padding: 8px 10px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #e6edf3;
+    font-family: inherit;
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .auth-panel input[type=password]:focus,
+  .auth-panel input[type=text]:focus {
+    outline: none;
+    border-color: #58a6ff;
+  }
+  .auth-panel .field-label {
+    display: block;
+    font-size: 11px;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .auth-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .auth-panel label {
+    font-size: 12px; color: #8b949e;
+    display: flex; align-items: center; gap: 6px;
+    cursor: pointer;
+  }
+  .auth-panel button {
+    background: #238636;
+    border: 1px solid #2ea043;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+  }
+  .auth-panel button:hover { background: #2ea043; }
+  .auth-inline {
+    font-size: 11px; color: #8b949e;
+    margin-left: 8px;
+  }
+  .auth-inline a { color: #58a6ff; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+  <h1>BILRESA Scroll Wheel — Live Debug</h1>
+  <div id="status" class="status">waiting for token…<span class="auth-inline" id="forget-wrap" hidden> · <a id="forget">clear saved token</a></span></div>
+
+  <div class="auth-panel" id="auth-panel">
+    <h2>Home Assistant Connection</h2>
+    <p>Enter your HA WebSocket URL and a long-lived access token. Both are used locally by this page only — nothing is sent elsewhere.</p>
+    <span class="field-label">WebSocket URL</span>
+    <input type="text" id="url-input" autocomplete="off" spellcheck="false">
+    <span class="field-label">Access token</span>
+    <input type="password" id="token-input" placeholder="eyJhbGciOi…" autocomplete="off" spellcheck="false">
+    <div class="auth-row">
+      <label><input type="checkbox" id="remember" checked> Remember in this browser (localStorage)</label>
+      <button id="connect-btn">Connect</button>
+    </div>
+  </div>
+
+  <div class="grid" id="main-grid" hidden>
+    <div class="panel">
+      <h2>Active Dot <span style="font-weight:400;text-transform:none;letter-spacing:0">(from last rotation event)</span></h2>
+      <div class="dots">
+        <div class="dot" id="dot-1">1<div class="label">btn 1/2/3</div></div>
+        <div class="dot" id="dot-2">2<div class="label">btn 4/5/6</div></div>
+        <div class="dot" id="dot-3">3<div class="label">btn 7/8/9</div></div>
+      </div>
+      <div class="rotation" style="margin-top:32px">
+        <div class="wheel" id="wheel"></div>
+        <div class="rotation-info">
+          <div class="dir" id="dir">—</div>
+          <div id="ticks">0 ticks</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>All Button Endpoints</h2>
+      <div class="buttons" id="buttons"></div>
+      <h2 style="margin-top:24px">Target Light Status</h2>
+      <div id="lights"></div>
+    </div>
+
+    <div class="panel" style="grid-column: 1 / -1">
+      <h2>Event Log</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+<script>
+const DEFAULT_HA_WS_URL = "ws://10.0.0.50:8123/api/websocket";
+const TOKEN_STORAGE_KEY = "bilresa_debug_ha_token";
+const URL_STORAGE_KEY   = "bilresa_debug_ha_ws_url";
+
+const authPanel   = document.getElementById("auth-panel");
+const mainGrid    = document.getElementById("main-grid");
+const urlInput    = document.getElementById("url-input");
+const tokenInput  = document.getElementById("token-input");
+const rememberCb  = document.getElementById("remember");
+const connectBtn  = document.getElementById("connect-btn");
+const forgetWrap  = document.getElementById("forget-wrap");
+const forgetLink  = document.getElementById("forget");
+
+urlInput.placeholder = DEFAULT_HA_WS_URL;
+
+const statusEl = document.getElementById("status");
+const logEl    = document.getElementById("log");
+const btnsEl   = document.getElementById("buttons");
+const lightsEl = document.getElementById("lights");
+const wheelEl  = document.getElementById("wheel");
+const dirEl    = document.getElementById("dir");
+const ticksEl  = document.getElementById("ticks");
+
+// button state
+const BTN_COUNT = 9;
+const btnStates = {};
+for (let i = 1; i <= BTN_COUNT; i++) {
+  btnStates[i] = { et: "—", ts: "—", hitAt: 0 };
+  const box = document.createElement("div");
+  box.className = "btn-box";
+  box.id = `btn-${i}`;
+  box.innerHTML = `<div class="name">button_${i}</div><div class="et">—</div><div class="ts">—</div>`;
+  btnsEl.appendChild(box);
+}
+
+const TARGET_LIGHTS = ["light.sofa_lamp", "light.side_lamp", "light.floor_lamp"];
+TARGET_LIGHTS.forEach(eid => {
+  const row = document.createElement("div");
+  row.className = "target-info";
+  row.innerHTML = `<span class="lbl">${eid}</span><span class="val" id="lt-${eid.replace(/\./g,'_')}">—</span>`;
+  lightsEl.appendChild(row);
+});
+
+let wheelRot = 0;
+
+function addLog(kind, msg) {
+  const entry = document.createElement("div");
+  entry.className = `log-entry ${kind}`;
+  const now = new Date();
+  const t = now.toLocaleTimeString([], {hour12: false}) + "." + String(now.getMilliseconds()).padStart(3,'0');
+  entry.innerHTML = `<span class="t">${t}</span><span class="m">${msg}</span>`;
+  logEl.insertBefore(entry, logEl.firstChild);
+  while (logEl.children.length > 200) logEl.removeChild(logEl.lastChild);
+}
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = "status " + (cls || "");
+}
+
+// Map: rotation endpoint → {dot, direction}
+const ROT_MAP = {
+  1: { dot: 1, dir: "CW"  },
+  2: { dot: 1, dir: "CCW" },
+  4: { dot: 2, dir: "CW"  },
+  5: { dot: 2, dir: "CCW" },
+  7: { dot: 3, dir: "CW"  },
+  8: { dot: 3, dir: "CCW" },
+};
+
+function refreshActiveDot() {
+  // Most recent rotation event wins — that endpoint's dot is active.
+  let best = null;
+  for (const n of Object.keys(ROT_MAP)) {
+    const ts = btnStates[n].hitAt;
+    if (ts > 0 && (!best || ts > best.ts)) best = { dot: ROT_MAP[n].dot, ts };
+  }
+  document.querySelectorAll(".dot").forEach(d => d.classList.remove("active"));
+  if (best) document.getElementById(`dot-${best.dot}`).classList.add("active");
+}
+
+function flashDot(n) {
+  const el = document.getElementById(`dot-${n}`);
+  el.classList.add("flash");
+  setTimeout(() => el.classList.remove("flash"), 300);
+}
+
+function handleButtonEvent(n, et) {
+  btnStates[n].et = et;
+  btnStates[n].ts = new Date().toLocaleTimeString([], {hour12: false});
+  btnStates[n].hitAt = Date.now();
+
+  const box = document.getElementById(`btn-${n}`);
+  box.querySelector(".et").textContent = et;
+  box.querySelector(".ts").textContent = btnStates[n].ts;
+  box.classList.add("hit");
+  setTimeout(() => box.classList.remove("hit"), 400);
+
+  if (ROT_MAP[n]) {
+    // rotation — the endpoint tells us both the dot and the direction
+    const { dot, dir } = ROT_MAP[n];
+    const ticks = parseInt(et.split("_").pop()) || 1;
+    wheelEl.classList.remove("cw","ccw");
+    void wheelEl.offsetWidth;
+    wheelEl.classList.add(dir.toLowerCase());
+    wheelRot += (dir === "CW" ? 1 : -1) * ticks * 20;
+    wheelEl.style.transform = `rotate(${wheelRot}deg)`;
+    dirEl.textContent = `${dir} · Dot ${dot}`;
+    dirEl.className = "dir " + dir.toLowerCase();
+    ticksEl.textContent = `${ticks} tick${ticks>1?'s':''}`;
+    flashDot(dot);
+    refreshActiveDot();
+    addLog("rot", `Rotate <b>${dir}</b> ×${ticks} on <b>Dot ${dot}</b> (button_${n} ${et})`);
+    setTimeout(() => { wheelEl.classList.remove("cw","ccw"); }, 800);
+  } else if (n === 3 || n === 6 || n === 9) {
+    // physical press / long-press buttons (one per dot)
+    const dot = (n + 3) / 3 | 0;  // 3→1, 6→2, 9→3
+    const dotFromButton = { 3: 1, 6: 2, 9: 3 }[n];
+    flashDot(dotFromButton);
+    addLog("dot", `Dot ${dotFromButton} press (button_${n} ${et})`);
+  } else {
+    addLog("", `button_${n} ${et}`);
+  }
+}
+
+function handleLightState(eid, state, attrs) {
+  const el = document.getElementById(`lt-${eid.replace(/\./g,'_')}`);
+  if (!el) return;
+  const br = attrs.brightness;
+  const pct = br != null ? Math.round((br/255)*100) : null;
+  el.textContent = state === "unavailable" ? "unavailable"
+    : state === "on" ? (pct != null ? `on · ${pct}%` : "on")
+    : state;
+  el.className = "val " + (state === "unavailable" ? "unavailable" : state === "on" ? "active" : "");
+}
+
+// --- WebSocket ---
+let msgId = 1;
+
+function connect(url, token) {
+  authPanel.hidden = true;
+  mainGrid.hidden = false;
+  forgetWrap.hidden = false;
+  setStatus(`connecting to ${url}…`);
+
+  const ws = new WebSocket(url);
+
+  ws.addEventListener("open", () => setStatus("connected, authenticating…"));
+  ws.addEventListener("error", e => setStatus("error: " + (e.message || "websocket error"), "err"));
+  ws.addEventListener("close", () => setStatus("disconnected", "err"));
+
+  ws.addEventListener("message", evt => {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === "auth_required") {
+      ws.send(JSON.stringify({ type: "auth", access_token: token }));
+    } else if (msg.type === "auth_ok") {
+    setStatus("connected — listening for BILRESA events", "ok");
+    // Subscribe to state_changed
+    ws.send(JSON.stringify({ id: msgId++, type: "subscribe_events", event_type: "state_changed" }));
+    // Fetch initial states
+    ws.send(JSON.stringify({ id: msgId++, type: "get_states" }));
+  } else if (msg.type === "auth_invalid") {
+    setStatus("auth failed: " + msg.message, "err");
+  } else if (msg.type === "result" && Array.isArray(msg.result)) {
+    // initial states
+    msg.result.forEach(s => {
+      const m = s.entity_id.match(/^event\.bilresa_scroll_wheel_button_(\d+)$/);
+      if (m && s.state && s.state !== "unknown" && s.state !== "unavailable") {
+        const n = parseInt(m[1]);
+        const et = s.attributes.event_type;
+        btnStates[n].et = et || "—";
+        btnStates[n].ts = new Date(s.state).toLocaleTimeString([], {hour12:false});
+        btnStates[n].hitAt = new Date(s.state).getTime();
+        const box = document.getElementById(`btn-${n}`);
+        box.querySelector(".et").textContent = btnStates[n].et;
+        box.querySelector(".ts").textContent = btnStates[n].ts;
+      }
+      if (TARGET_LIGHTS.includes(s.entity_id)) handleLightState(s.entity_id, s.state, s.attributes);
+    });
+    refreshActiveDot();
+    addLog("", `loaded initial state for ${msg.result.length} entities`);
+  } else if (msg.type === "event" && msg.event && msg.event.event_type === "state_changed") {
+    const d = msg.event.data;
+    const eid = d.entity_id;
+    const ns = d.new_state;
+    if (!ns) return;
+    const m = eid.match(/^event\.bilresa_scroll_wheel_button_(\d+)$/);
+    if (m) {
+      handleButtonEvent(parseInt(m[1]), ns.attributes.event_type);
+      return;
+    }
+    const mp = eid.match(/^sensor\.bilresa_scroll_wheel_current_switch_position_(\d+)$/);
+    if (mp) {
+      addLog("sens", `position_${mp[1]} → ${ns.state}`);
+      return;
+    }
+    if (TARGET_LIGHTS.includes(eid)) {
+      handleLightState(eid, ns.state, ns.attributes);
+      addLog("", `${eid} → ${ns.state}${ns.attributes.brightness ? ` (br=${ns.attributes.brightness})` : ""}`);
+      return;
+    }
+    if (eid === "automation.bilresa") {
+      addLog("", `automation fired at ${ns.attributes.last_triggered}`);
+    }
+  }
+  });
+}
+
+// --- Bootstrap: load url/token from storage or prompt user ---
+function lsGet(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, value); } catch (e) {}
+}
+function lsRemove(key) {
+  try { localStorage.removeItem(key); } catch (e) {}
+}
+
+function startWithCredentials(url, token, remember) {
+  if (remember) {
+    lsSet(TOKEN_STORAGE_KEY, token);
+    lsSet(URL_STORAGE_KEY, url);
+  }
+  connect(url, token);
+}
+
+connectBtn.addEventListener("click", () => {
+  const url = urlInput.value.trim() || DEFAULT_HA_WS_URL;
+  const token = tokenInput.value.trim();
+  if (!token) { tokenInput.focus(); return; }
+  startWithCredentials(url, token, rememberCb.checked);
+});
+
+[urlInput, tokenInput].forEach(el => {
+  el.addEventListener("keydown", e => { if (e.key === "Enter") connectBtn.click(); });
+});
+
+forgetLink.addEventListener("click", () => {
+  lsRemove(TOKEN_STORAGE_KEY);
+  lsRemove(URL_STORAGE_KEY);
+  location.reload();
+});
+
+const savedToken = lsGet(TOKEN_STORAGE_KEY);
+const savedUrl   = lsGet(URL_STORAGE_KEY) || DEFAULT_HA_WS_URL;
+
+urlInput.value = savedUrl;
+
+if (savedToken) {
+  connect(savedUrl, savedToken);
+} else {
+  tokenInput.focus();
+}
+</script>
+</body>
+</html>
