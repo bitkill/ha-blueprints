@@ -2,6 +2,19 @@
 
 Hard-won lessons from building the BILRESA dimmer blueprint. Optimized for the next agent picking up this directory.
 
+## Tools
+
+The `tools/` folder wraps the common HA websocket calls. Credentials come from `.env` (copy `.env.example`; `HA_URL` + `HA_TOKEN`). Prefer these over ad-hoc Python:
+
+| Command | Use for |
+|---|---|
+| `tools/push_blueprint.py <file.yaml>` | Push a local blueprint + reload (handles the `source_url` cache trap) |
+| `tools/reload_automations.py` | Reload without pushing |
+| `tools/system_log.py [substr] [-l ERROR]` | Filter HA's system log — **first stop for debugging** |
+| `tools/watch_events.py [-f substr] [--services light]` | Live-print `state_changed` + `call_service` |
+
+For anything outside these, use the `HA` context manager in `tools/ha.py` (`ha.rpc(...)`, `ha.subscribe(...)`, `ha.events(...)`).
+
 ## Debugging workflow (in order)
 
 1. **Check `system_log/list` first, not traces.** Trace buffers get flooded with unrelated `state_changed` events; the system log has the actual Jinja/Python errors. Via websocket: `{"type": "system_log/list"}`.
@@ -41,21 +54,22 @@ Hard-won lessons from building the BILRESA dimmer blueprint. Optimized for the n
   delta: "{{ [-50, [50, raw_delta] | min] | max }}"
   ```
 
+- **Sensor state strings get auto-coerced to int in `variables:`.** If the state is `"0"` or `"1"` (common for binary-ish sensors like Matter switch positions), HA turns it into the int `0`/`1` when you assign it to a variable. Comparing against string literals (`== '0'`) then silently fails. Cast explicitly and compare as ints:
+  ```yaml
+  # WRONG — HA coerces, '0' never matches
+  new_val: "{{ trigger.event.data.new_state.state }}"
+  condition: "{{ new_val == '0' }}"
+
+  # RIGHT
+  new_val: "{{ trigger.event.data.new_state.state | int(-1) }}"
+  condition: "{{ new_val == 0 }}"
+  ```
+
 ## Deployment / cache trap
 
 **HA does not re-fetch `source_url` blueprints automatically.** Once imported, the blueprint lives at `/config/blueprints/automation/<namespace>/<file>.yaml`. Pushing to GitHub does nothing — HA keeps serving the cached copy.
 
-To push a fix:
-```python
-ws.send({"id": N, "type": "blueprint/save", "domain": "automation",
-         "path": "ns/file.yaml", "yaml": new_content,
-         "source_url": "...", "allow_override": True})
-ws.send({"id": N+1, "type": "call_service",
-         "domain": "automation", "service": "reload"})
-```
-Don't forget `allow_override: True` — without it, `save` errors with "File already exists".
-
-Existing automations keep their saved input values across blueprint updates — if you change defaults, they don't propagate.
+Use `tools/push_blueprint.py <file.yaml>` — it calls `blueprint/save` with `allow_override: True` (HA rejects the call without that flag) and reloads automations. Existing automation instances keep their saved input values across blueprint updates, so changing a default doesn't propagate to them.
 
 ## Event entities (Matter / Zigbee buttons)
 

@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BILRESA Live Debug (v2 — position sensors)</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #0d1117; color: #e6edf3;
+    min-height: 100vh;
+  }
+  h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+  .status { font-size: 12px; color: #8b949e; margin-bottom: 24px; }
+  .status.ok { color: #3fb950; }
+  .status.err { color: #f85149; }
+  .subtitle-small { font-size: 12px; color: #6e7681; font-weight: 400; }
+
+  .stack { display: flex; flex-direction: column; gap: 24px; max-width: 1200px; }
+
+  .panel {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .panel > h2 {
+    margin: 0 0 16px;
+    font-size: 13px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #8b949e;
+  }
+
+  .remote-header {
+    display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px;
+  }
+  .remote-header h2 {
+    margin: 0; font-size: 16px; font-weight: 600; color: #e6edf3;
+    text-transform: none; letter-spacing: 0;
+  }
+  .remote-header .device-id { font-size: 11px; color: #6e7681; }
+
+  .remote-body {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .remote-body { grid-template-columns: 1fr; }
+  }
+
+  .dots {
+    display: flex; justify-content: center; gap: 28px;
+    padding: 24px 0;
+  }
+  .bdot {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: 2px solid #30363d;
+    background: #0d1117;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 600;
+    color: #484f58;
+    transition: all 0.25s ease;
+    position: relative;
+  }
+  .bdot.active {
+    background: #1f6feb; border-color: #58a6ff; color: #fff;
+    box-shadow: 0 0 24px rgba(88, 166, 255, 0.5);
+  }
+  .bdot.flash {
+    transform: scale(1.15);
+    background: #fb8500; border-color: #fb8500; color: #fff;
+  }
+  .bdot .label {
+    position: absolute; bottom: -22px; left: 0; right: 0;
+    text-align: center; font-size: 10px; color: #8b949e;
+    font-weight: 400; letter-spacing: 0.05em;
+  }
+
+  .rotation {
+    display: flex; align-items: center; justify-content: center;
+    height: 120px; position: relative;
+  }
+  .wheel {
+    width: 96px; height: 96px;
+    border: 3px solid #30363d; border-radius: 50%;
+    position: relative;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .wheel::before {
+    content: '';
+    position: absolute; top: 4px; left: 50%;
+    width: 6px; height: 16px; margin-left: -3px;
+    background: #58a6ff; border-radius: 3px;
+  }
+  .wheel.cw  { border-color: #3fb950; box-shadow: 0 0 24px rgba(63,185,80,0.5); }
+  .wheel.ccw { border-color: #f85149; box-shadow: 0 0 24px rgba(248,81,73,0.5); }
+  .rotation-info {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 11px; color: #8b949e; text-align: right;
+  }
+  .rotation-info .dir { font-weight: 600; font-size: 14px; }
+  .dir.cw  { color: #3fb950; }
+  .dir.ccw { color: #f85149; }
+
+  .press-status {
+    margin-top: 12px; text-align: center;
+    font-size: 11px; color: #8b949e; min-height: 18px;
+  }
+  .press-status.held { color: #fb8500; font-weight: 600; }
+
+  .positions {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .pos-box {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 11px;
+    transition: all 0.1s ease;
+    display: grid; grid-template-rows: auto auto auto auto;
+    gap: 2px;
+  }
+  .pos-box.high { border-color: #3fb950; background: #0a2618; }
+  .pos-box.flash { border-color: #fb8500; background: #2d1a0a; }
+  .pos-box .name { font-weight: 600; color: #e6edf3; }
+  .pos-box .role { color: #6e7681; font-size: 10px; }
+  .pos-box .state {
+    color: #8b949e; font-size: 10px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pos-box .state .led {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #484f58; transition: background 0.1s;
+  }
+  .pos-box.high .state .led { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
+  .pos-box .ts { color: #6e7681; font-size: 9px; }
+
+  .log {
+    max-height: 400px; overflow-y: auto; font-size: 11px;
+  }
+  .log-entry {
+    padding: 6px 0; border-bottom: 1px solid #21262d;
+    display: grid; grid-template-columns: 90px 110px 1fr; gap: 12px;
+  }
+  .log-entry .t { color: #6e7681; }
+  .log-entry .r { color: #8b949e; font-size: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log-entry .m { color: #e6edf3; }
+  .log-entry.rot    .m { color: #58a6ff; }
+  .log-entry.press  .m { color: #fb8500; }
+  .log-entry.long   .m { color: #d29922; font-weight: 600; }
+  .log-entry.target .m { color: #3fb950; }
+  .log-entry.sys    .m { color: #6e7681; font-size: 10px; }
+
+  .empty {
+    text-align: center; padding: 32px;
+    color: #8b949e; font-size: 13px;
+  }
+
+  .targets {
+    margin-top: 20px; padding-top: 16px;
+    border-top: 1px solid #21262d;
+  }
+  .targets h3 {
+    margin: 0 0 12px;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #8b949e;
+  }
+  .target-row {
+    display: grid; grid-template-columns: 48px 1fr auto;
+    gap: 10px; padding: 6px 0; font-size: 12px;
+    align-items: baseline;
+  }
+  .target-row .dot-lbl { font-weight: 600; color: #58a6ff; }
+  .target-row .eid {
+    color: #e6edf3;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .target-row .eid.empty { color: #484f58; font-style: italic; }
+  .target-row .state-info { color: #8b949e; font-size: 11px; }
+  .target-row .state-info.unavailable { color: #f85149; }
+  .target-row .state-info.on { color: #3fb950; }
+  .target-row.flash { background: #1f2937; border-radius: 4px; animation: flash-fade 1.2s ease-out; }
+  @keyframes flash-fade {
+    0%   { background: #3b2f0a; }
+    100% { background: transparent; }
+  }
+
+  .auth-panel {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 20px; max-width: 640px; margin-bottom: 24px;
+  }
+  .auth-panel h2 {
+    margin: 0 0 8px;
+    font-size: 13px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #8b949e;
+  }
+  .auth-panel p { margin: 0 0 12px; font-size: 12px; color: #8b949e; }
+  .auth-panel input[type=password],
+  .auth-panel input[type=text] {
+    width: 100%; padding: 8px 10px;
+    background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    color: #e6edf3; font-family: inherit; font-size: 12px;
+    margin-bottom: 10px;
+  }
+  .auth-panel input:focus { outline: none; border-color: #58a6ff; }
+  .auth-panel .field-label {
+    display: block; font-size: 11px; color: #8b949e;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .auth-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .auth-panel label {
+    font-size: 12px; color: #8b949e;
+    display: flex; align-items: center; gap: 6px; cursor: pointer;
+  }
+  .auth-panel button {
+    background: #238636; border: 1px solid #2ea043; color: #fff;
+    padding: 8px 16px; border-radius: 6px;
+    font-family: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer;
+  }
+  .auth-panel button:hover { background: #2ea043; }
+  .auth-inline {
+    font-size: 11px; color: #8b949e; margin-left: 8px;
+  }
+  .auth-inline a { color: #58a6ff; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+  <h1>BILRESA Live Debug <span class="subtitle-small">— v2: position sensors (low latency)</span></h1>
+  <div id="status" class="status">waiting for token…<span class="auth-inline" id="forget-wrap" hidden> · <a id="forget">clear saved token</a></span></div>
+
+  <div class="auth-panel" id="auth-panel">
+    <h2>Home Assistant Connection</h2>
+    <p>Enter your HA WebSocket URL and a long-lived access token. Both are used locally by this page only — nothing is sent elsewhere.</p>
+    <span class="field-label">WebSocket URL</span>
+    <input type="text" id="url-input" autocomplete="off" spellcheck="false">
+    <span class="field-label">Access token</span>
+    <input type="password" id="token-input" placeholder="eyJhbGciOi…" autocomplete="off" spellcheck="false">
+    <div class="auth-row">
+      <label><input type="checkbox" id="remember" checked> Remember in this browser (localStorage)</label>
+      <button id="connect-btn">Connect</button>
+    </div>
+  </div>
+
+  <div class="stack" id="main" hidden>
+    <div id="remotes-container"></div>
+    <div class="panel">
+      <h2>Event Log <span class="subtitle-small">(position sensor changes • each rotation tick fires instantly)</span></h2>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+<script>
+const DEFAULT_HA_WS_URL = "ws://10.0.0.50:8123/api/websocket";
+const TOKEN_STORAGE_KEY = "bilresa_debug_ha_token";
+const URL_STORAGE_KEY   = "bilresa_debug_ha_ws_url";
+const LONG_PRESS_MS     = 500;
+const ATTR_WINDOW_MS    = 750;
+
+const authPanel = document.getElementById("auth-panel");
+const mainEl    = document.getElementById("main");
+const remotesEl = document.getElementById("remotes-container");
+const urlInput  = document.getElementById("url-input");
+const tokenInput= document.getElementById("token-input");
+const rememberCb= document.getElementById("remember");
+const connectBtn= document.getElementById("connect-btn");
+const forgetWrap= document.getElementById("forget-wrap");
+const forgetLink= document.getElementById("forget");
+const statusEl  = document.getElementById("status");
+const logEl     = document.getElementById("log");
+
+urlInput.placeholder = DEFAULT_HA_WS_URL;
+
+// position_N → { dot, slot, kind, label }
+const ROLE = {
+  1: { dot: 1, slot: 1, kind: "rotation", dir: "CW",  label: "Dot 1 · CW"  },
+  2: { dot: 1, slot: 2, kind: "rotation", dir: "CCW", label: "Dot 1 · CCW" },
+  3: { dot: 1, slot: 3, kind: "press",                 label: "Dot 1 · Press"},
+  4: { dot: 2, slot: 1, kind: "rotation", dir: "CW",  label: "Dot 2 · CW"  },
+  5: { dot: 2, slot: 2, kind: "rotation", dir: "CCW", label: "Dot 2 · CCW" },
+  6: { dot: 2, slot: 3, kind: "press",                 label: "Dot 2 · Press"},
+  7: { dot: 3, slot: 1, kind: "rotation", dir: "CW",  label: "Dot 3 · CW"  },
+  8: { dot: 3, slot: 2, kind: "rotation", dir: "CCW", label: "Dot 3 · CCW" },
+  9: { dot: 3, slot: 3, kind: "press",                 label: "Dot 3 · Press"},
+};
+
+const remotes = new Map();           // device_id → RemoteState
+const entityToDevice = new Map();    // entity_id → device_id
+const entityToPosition = new Map();  // entity_id → position number (1..9)
+
+let lastTrigger = null; // { remote, dot, at } — for light correlation
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = "status " + (cls || "");
+}
+
+function addLog(kind, remoteLabel, msg) {
+  const entry = document.createElement("div");
+  entry.className = `log-entry ${kind}`;
+  const now = new Date();
+  const t = now.toLocaleTimeString([], {hour12: false}) + "." + String(now.getMilliseconds()).padStart(3,'0');
+  entry.innerHTML = `<span class="t">${t}</span><span class="r">${remoteLabel || ""}</span><span class="m">${msg}</span>`;
+  logEl.insertBefore(entry, logEl.firstChild);
+  while (logEl.children.length > 250) logEl.removeChild(logEl.lastChild);
+}
+
+function buildRemotePanel(device, entities) {
+  const name = device.name_by_user || device.name || "BILRESA scroll wheel";
+  const section = document.createElement("section");
+  section.className = "panel";
+  section.dataset.deviceId = device.id;
+
+  section.innerHTML = `
+    <header class="remote-header">
+      <h2>${name}</h2>
+      <span class="device-id">${device.id.slice(0, 12)}…</span>
+    </header>
+    <div class="remote-body">
+      <div>
+        <div class="dots">
+          <div class="bdot" data-dot="1">1<div class="label">pos 1/2/3</div></div>
+          <div class="bdot" data-dot="2">2<div class="label">pos 4/5/6</div></div>
+          <div class="bdot" data-dot="3">3<div class="label">pos 7/8/9</div></div>
+        </div>
+        <div class="rotation" style="margin-top:32px">
+          <div class="wheel"></div>
+          <div class="rotation-info">
+            <div class="dir">—</div>
+            <div class="ticks">0 ticks</div>
+          </div>
+        </div>
+        <div class="press-status">—</div>
+      </div>
+      <div>
+        <div class="positions"></div>
+      </div>
+    </div>
+    <div class="targets">
+      <h3>Detected Target Lights <span class="subtitle-small">(auto-attributed within ${ATTR_WINDOW_MS} ms of a position event)</span></h3>
+      <div class="target-row" data-dot="1"><span class="dot-lbl">Dot 1</span><span class="eid empty">(not yet detected)</span><span class="state-info"></span></div>
+      <div class="target-row" data-dot="2"><span class="dot-lbl">Dot 2</span><span class="eid empty">(not yet detected)</span><span class="state-info"></span></div>
+      <div class="target-row" data-dot="3"><span class="dot-lbl">Dot 3</span><span class="eid empty">(not yet detected)</span><span class="state-info"></span></div>
+    </div>
+  `;
+  remotesEl.appendChild(section);
+
+  const positionsEl = section.querySelector(".positions");
+  const posEls = {};
+  for (let i = 1; i <= 9; i++) {
+    const role = ROLE[i];
+    const box = document.createElement("div");
+    box.className = "pos-box";
+    box.innerHTML = `
+      <div class="name">position_${i}</div>
+      <div class="role">${role.label}</div>
+      <div class="state"><span class="led"></span><span class="state-text">—</span></div>
+      <div class="ts">—</div>
+    `;
+    positionsEl.appendChild(box);
+    posEls[i] = box;
+  }
+
+  return {
+    id: device.id,
+    name,
+    entities,                                    // 1..9 → entity_id
+    posStates: Object.fromEntries(
+      Array.from({length: 9}, (_, i) => [i+1, { value: null, highAt: 0, lastChangeAt: 0 }])
+    ),
+    detected: { 1: null, 2: null, 3: null },
+    wheelRot: 0,
+    rotCount: { 1: 0, 2: 0, 3: 0 },
+    els: {
+      section,
+      dots: Array.from(section.querySelectorAll(".bdot")),
+      posEls,
+      wheel:  section.querySelector(".wheel"),
+      dir:    section.querySelector(".rotation-info .dir"),
+      ticks:  section.querySelector(".rotation-info .ticks"),
+      press:  section.querySelector(".press-status"),
+      targetRows: {
+        1: section.querySelector('.target-row[data-dot="1"]'),
+        2: section.querySelector('.target-row[data-dot="2"]'),
+        3: section.querySelector('.target-row[data-dot="3"]'),
+      },
+    },
+  };
+}
+
+function refreshActiveDot(remote) {
+  let best = null;
+  for (let n = 1; n <= 9; n++) {
+    if (ROLE[n].kind !== "rotation") continue;
+    const ts = remote.posStates[n].lastChangeAt;
+    if (ts > 0 && (!best || ts > best.ts)) best = { dot: ROLE[n].dot, ts };
+  }
+  remote.els.dots.forEach(d => d.classList.remove("active"));
+  if (best) remote.els.dots[best.dot - 1].classList.add("active");
+}
+
+function flashDot(remote, dot) {
+  const el = remote.els.dots[dot - 1];
+  el.classList.add("flash");
+  setTimeout(() => el.classList.remove("flash"), 200);
+}
+
+function updatePosBox(remote, n, newVal) {
+  const box = remote.els.posEls[n];
+  const high = newVal === "1";
+  box.classList.toggle("high", high);
+  box.classList.add("flash");
+  setTimeout(() => box.classList.remove("flash"), 200);
+  box.querySelector(".state-text").textContent = newVal;
+  box.querySelector(".ts").textContent = new Date().toLocaleTimeString([], {hour12: false});
+}
+
+function handleRotationEdge(remote, n) {
+  const role = ROLE[n];
+  const { wheel, dir: dirEl, ticks: ticksEl } = remote.els;
+  remote.rotCount[role.dot] += role.dir === "CW" ? 1 : -1;
+  wheel.classList.remove("cw", "ccw");
+  void wheel.offsetWidth;
+  wheel.classList.add(role.dir.toLowerCase());
+  remote.wheelRot += (role.dir === "CW" ? 1 : -1) * 30;
+  wheel.style.transform = `rotate(${remote.wheelRot}deg)`;
+  dirEl.textContent = `${role.dir} · Dot ${role.dot}`;
+  dirEl.className = "dir " + role.dir.toLowerCase();
+  ticksEl.textContent = `${remote.rotCount[role.dot]} net tick${Math.abs(remote.rotCount[role.dot]) === 1 ? "" : "s"} (Dot ${role.dot})`;
+  flashDot(remote, role.dot);
+  refreshActiveDot(remote);
+  addLog("rot", remote.name, `⟳ <b>${role.dir}</b> Dot ${role.dot} (position_${n} 0→1)`);
+  setTimeout(() => wheel.classList.remove("cw", "ccw"), 400);
+}
+
+function handlePressEdge(remote, n, newVal, oldLastChangedMs, nowMs) {
+  const role = ROLE[n];
+  const pressEl = remote.els.press;
+  if (newVal === "1") {
+    pressEl.textContent = `Dot ${role.dot} — holding…`;
+    pressEl.classList.add("held");
+    flashDot(remote, role.dot);
+    addLog("press", remote.name, `Dot ${role.dot} button down (position_${n})`);
+  } else {
+    const heldMs = oldLastChangedMs ? nowMs - oldLastChangedMs : 0;
+    pressEl.classList.remove("held");
+    if (heldMs >= LONG_PRESS_MS) {
+      pressEl.textContent = `Dot ${role.dot} — long press (${heldMs} ms)`;
+      addLog("long", remote.name, `Dot ${role.dot} <b>LONG</b> press (${heldMs} ms)`);
+    } else {
+      pressEl.textContent = `Dot ${role.dot} — short press (${heldMs} ms)`;
+      addLog("press", remote.name, `Dot ${role.dot} short press (${heldMs} ms)`);
+    }
+    setTimeout(() => { if (pressEl.textContent.startsWith(`Dot ${role.dot}`)) pressEl.textContent = "—"; }, 2000);
+  }
+}
+
+function renderDetectedTarget(remote, dot, eid, oldState, newState) {
+  const row = remote.els.targetRows[dot];
+  if (!row) return;
+  if (!remote.detected[dot] || remote.detected[dot].entity_id !== eid) {
+    remote.detected[dot] = { entity_id: eid };
+  }
+  const eidEl   = row.querySelector(".eid");
+  const stateEl = row.querySelector(".state-info");
+  eidEl.textContent = eid;
+  eidEl.classList.remove("empty");
+  const nbr = (newState.attributes || {}).brightness;
+  const obr = (oldState && oldState.attributes) ? oldState.attributes.brightness : null;
+  const pct = nbr != null ? Math.round((nbr / 255) * 100) : null;
+  let info;
+  if (newState.state === "unavailable") info = "unavailable";
+  else if (newState.state === "on") info = pct != null ? `on · ${pct}%` : "on";
+  else info = newState.state;
+  if (obr != null && nbr != null && obr !== nbr) info += `  (br ${obr}→${nbr})`;
+  else if ((oldState && oldState.state) && oldState.state !== newState.state) info += `  (${oldState.state}→${newState.state})`;
+  stateEl.textContent = info;
+  stateEl.className = "state-info " + (newState.state === "unavailable" ? "unavailable" : newState.state === "on" ? "on" : "");
+  row.classList.remove("flash");
+  void row.offsetWidth;
+  row.classList.add("flash");
+}
+
+function seedInitialStates(states) {
+  for (const s of states) {
+    const deviceId = entityToDevice.get(s.entity_id);
+    if (!deviceId) continue;
+    const remote = remotes.get(deviceId);
+    if (!remote) continue;
+    const n = entityToPosition.get(s.entity_id);
+    if (!n) continue;
+    remote.posStates[n].value = s.state;
+    if (s.state === "1") remote.posStates[n].highAt = new Date(s.last_changed).getTime();
+    remote.posStates[n].lastChangeAt = new Date(s.last_changed).getTime();
+    remote.els.posEls[n].classList.toggle("high", s.state === "1");
+    remote.els.posEls[n].querySelector(".state-text").textContent = s.state;
+    remote.els.posEls[n].querySelector(".ts").textContent = new Date(s.last_changed).toLocaleTimeString([], {hour12:false});
+  }
+}
+
+function connect(url, token) {
+  authPanel.hidden = true;
+  mainEl.hidden = false;
+  forgetWrap.hidden = false;
+  setStatus(`connecting to ${url}…`);
+
+  const ws = new WebSocket(url);
+  let msgId = 1;
+  const pending = new Map();
+
+  function rpc(payload) {
+    const id = msgId++;
+    ws.send(JSON.stringify({ id, ...payload }));
+    return new Promise(resolve => pending.set(id, resolve));
+  }
+
+  ws.addEventListener("open",  () => setStatus("connected, authenticating…"));
+  ws.addEventListener("error", e => setStatus("error: " + (e.message || "websocket error"), "err"));
+  ws.addEventListener("close", () => setStatus("disconnected", "err"));
+
+  ws.addEventListener("message", async evt => {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === "auth_required") {
+      ws.send(JSON.stringify({ type: "auth", access_token: token }));
+      return;
+    }
+    if (msg.type === "auth_invalid") { setStatus("auth failed: " + msg.message, "err"); return; }
+    if (msg.type === "auth_ok") {
+      setStatus("authenticated — discovering BILRESA devices…", "ok");
+      discoverAndSubscribe();
+      return;
+    }
+    if (msg.type === "result" && pending.has(msg.id)) {
+      pending.get(msg.id)(msg.result);
+      pending.delete(msg.id);
+      return;
+    }
+    if (msg.type === "event" && msg.event && msg.event.event_type === "state_changed") {
+      handleStateChanged(msg.event.data);
+    }
+  });
+
+  async function discoverAndSubscribe() {
+    const [devices, entities] = await Promise.all([
+      rpc({ type: "config/device_registry/list" }),
+      rpc({ type: "config/entity_registry/list" }),
+    ]);
+
+    const bilresa = devices.filter(d =>
+      (d.manufacturer || "").includes("IKEA") &&
+      (d.model || "").toLowerCase().includes("bilresa")
+    );
+
+    if (bilresa.length === 0) {
+      remotesEl.innerHTML = `<div class="panel empty">No BILRESA scroll wheel devices found.</div>`;
+      setStatus("connected — no BILRESA devices", "ok");
+      return;
+    }
+
+    let totalEnabled = 0;
+    for (const dev of bilresa) {
+      const devEntities = entities.filter(e => e.device_id === dev.id &&
+        e.entity_id.includes("current_switch_position") &&
+        !e.disabled_by);
+      const byNum = {};
+      for (const e of devEntities) {
+        const m = (e.original_name || e.entity_id).match(/\((\d+)\)|_position_(\d+)(?:_\d+)?$/);
+        const num = m ? parseInt(m[1] || m[2]) : null;
+        if (num && num >= 1 && num <= 9) {
+          byNum[num] = e.entity_id;
+          entityToDevice.set(e.entity_id, dev.id);
+          entityToPosition.set(e.entity_id, num);
+        }
+      }
+      const remote = buildRemotePanel(dev, byNum);
+      remotes.set(dev.id, remote);
+      totalEnabled += Object.keys(byNum).length;
+      if (Object.keys(byNum).length < 9) {
+        addLog("sys", remote.name, `⚠ only ${Object.keys(byNum).length}/9 position sensors enabled — enable the rest in HA for full coverage`);
+      }
+    }
+
+    setStatus(`connected — watching ${remotes.size} remote${remotes.size === 1 ? "" : "s"}, ${totalEnabled} position sensor${totalEnabled === 1 ? "" : "s"}`, "ok");
+
+    rpc({ type: "subscribe_events", event_type: "state_changed" });
+    const states = await rpc({ type: "get_states" });
+    seedInitialStates(states);
+    addLog("sys", "", `discovered ${bilresa.length} BILRESA device${bilresa.length === 1 ? "" : "s"}, seeded ${states.length} states`);
+  }
+
+  function handleStateChanged(d) {
+    const eid = d.entity_id;
+    const ns = d.new_state;
+    if (!ns) return;
+
+    // Light correlation
+    if (eid.startsWith("light.")) {
+      if (lastTrigger && Date.now() - lastTrigger.at <= ATTR_WINDOW_MS) {
+        renderDetectedTarget(lastTrigger.remote, lastTrigger.dot, eid, d.old_state, ns);
+        addLog("target", lastTrigger.remote.name, `⟶ <b>${eid}</b> changed (dot ${lastTrigger.dot})`);
+      }
+      return;
+    }
+
+    // Position sensor?
+    const deviceId = entityToDevice.get(eid);
+    if (!deviceId) return;
+    const remote = remotes.get(deviceId);
+    if (!remote) return;
+    const n = entityToPosition.get(eid);
+    if (!n) return;
+
+    const newVal = ns.state;
+    const oldVal = d.old_state ? d.old_state.state : null;
+    const nowMs = Date.now();
+    const oldLastChangedMs = d.old_state ? new Date(d.old_state.last_changed).getTime() : null;
+    const role = ROLE[n];
+
+    remote.posStates[n].value = newVal;
+    remote.posStates[n].lastChangeAt = nowMs;
+    if (newVal === "1") remote.posStates[n].highAt = nowMs;
+
+    updatePosBox(remote, n, newVal);
+
+    lastTrigger = { remote, dot: role.dot, at: nowMs };
+
+    if (role.kind === "rotation") {
+      // Only count rising edges (0 → 1) — one tick per edge
+      if (oldVal !== "1" && newVal === "1") {
+        handleRotationEdge(remote, n);
+      }
+    } else { // press
+      if (oldVal !== newVal) {
+        handlePressEdge(remote, n, newVal, oldLastChangedMs, nowMs);
+      }
+    }
+  }
+}
+
+// credential bootstrap
+function lsGet(k)    { try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+function lsRemove(k) { try { localStorage.removeItem(k); } catch {} }
+
+connectBtn.addEventListener("click", () => {
+  const url = urlInput.value.trim() || DEFAULT_HA_WS_URL;
+  const token = tokenInput.value.trim();
+  if (!token) { tokenInput.focus(); return; }
+  if (rememberCb.checked) {
+    lsSet(TOKEN_STORAGE_KEY, token);
+    lsSet(URL_STORAGE_KEY, url);
+  }
+  connect(url, token);
+});
+
+[urlInput, tokenInput].forEach(el => {
+  el.addEventListener("keydown", e => { if (e.key === "Enter") connectBtn.click(); });
+});
+
+forgetLink.addEventListener("click", () => {
+  lsRemove(TOKEN_STORAGE_KEY);
+  lsRemove(URL_STORAGE_KEY);
+  location.reload();
+});
+
+const savedToken = lsGet(TOKEN_STORAGE_KEY);
+const savedUrl   = lsGet(URL_STORAGE_KEY) || DEFAULT_HA_WS_URL;
+urlInput.value = savedUrl;
+
+if (savedToken) { connect(savedUrl, savedToken); } else { tokenInput.focus(); }
+</script>
+</body>
+</html>
