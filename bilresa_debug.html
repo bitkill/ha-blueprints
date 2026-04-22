@@ -17,9 +17,9 @@
   .status.ok { color: #3fb950; }
   .status.err { color: #f85149; }
 
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+  .stack {
+    display: flex;
+    flex-direction: column;
     gap: 24px;
     max-width: 1200px;
   }
@@ -30,13 +30,46 @@
     border-radius: 8px;
     padding: 20px;
   }
-  .panel h2 {
+  .panel > h2 {
     margin: 0 0 16px;
     font-size: 13px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #8b949e;
+  }
+
+  .remote-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .remote-header h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #e6edf3;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .remote-header .device-id {
+    font-size: 11px;
+    color: #6e7681;
+  }
+  .remote-header .subtitle {
+    font-size: 11px;
+    color: #8b949e;
+  }
+
+  .remote-body {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .remote-body { grid-template-columns: 1fr; }
   }
 
   .dots {
@@ -130,6 +163,7 @@
     background: #2d1a0a;
   }
   .btn-box .name { font-weight: 600; color: #e6edf3; }
+  .btn-box .role { color: #6e7681; font-size: 10px; margin-top: 1px; }
   .btn-box .et { color: #8b949e; margin-top: 3px; font-size: 10px; }
   .btn-box .ts { color: #6e7681; font-size: 9px; margin-top: 2px; }
 
@@ -142,25 +176,65 @@
     padding: 6px 0;
     border-bottom: 1px solid #21262d;
     display: grid;
-    grid-template-columns: 70px 1fr;
+    grid-template-columns: 70px 110px 1fr;
     gap: 12px;
   }
   .log-entry .t { color: #6e7681; }
+  .log-entry .r { color: #8b949e; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .log-entry .m { color: #e6edf3; }
   .log-entry.rot .m { color: #58a6ff; }
-  .log-entry.dot .m { color: #fb8500; }
+  .log-entry.press .m { color: #fb8500; }
   .log-entry.sens .m { color: #6e7681; font-size: 10px; }
 
-  .sofa, .target-info {
-    display: flex; justify-content: space-between;
+  .empty {
+    text-align: center;
+    padding: 32px;
+    color: #8b949e;
     font-size: 13px;
-    padding: 6px 0;
-    border-bottom: 1px solid #21262d;
   }
-  .sofa .lbl, .target-info .lbl { color: #8b949e; }
-  .sofa .val, .target-info .val { color: #e6edf3; }
-  .val.unavailable { color: #f85149; }
-  .val.active { color: #3fb950; font-weight: 600; }
+
+  .targets {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #21262d;
+  }
+  .targets h3 {
+    margin: 0 0 12px;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: #8b949e;
+  }
+  .target-row {
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 12px;
+    align-items: baseline;
+  }
+  .target-row .dot-lbl {
+    font-weight: 600; color: #58a6ff;
+  }
+  .target-row .eid {
+    color: #e6edf3;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .target-row .eid.empty { color: #484f58; font-style: italic; }
+  .target-row .state-info {
+    color: #8b949e;
+    font-size: 11px;
+  }
+  .target-row .state-info.unavailable { color: #f85149; }
+  .target-row .state-info.on { color: #3fb950; }
+  .target-row.flash {
+    background: #1f2937;
+    border-radius: 4px;
+    animation: flash-fade 1.2s ease-out;
+  }
+  @keyframes flash-fade {
+    0%   { background: #3b2f0a; }
+    100% { background: transparent; }
+  }
 
   .auth-panel {
     background: #161b22;
@@ -246,31 +320,9 @@
     </div>
   </div>
 
-  <div class="grid" id="main-grid" hidden>
+  <div class="stack" id="main" hidden>
+    <div id="remotes-container"></div>
     <div class="panel">
-      <h2>Active Dot <span style="font-weight:400;text-transform:none;letter-spacing:0">(from last rotation event)</span></h2>
-      <div class="dots">
-        <div class="dot" id="dot-1">1<div class="label">btn 1/2/3</div></div>
-        <div class="dot" id="dot-2">2<div class="label">btn 4/5/6</div></div>
-        <div class="dot" id="dot-3">3<div class="label">btn 7/8/9</div></div>
-      </div>
-      <div class="rotation" style="margin-top:32px">
-        <div class="wheel" id="wheel"></div>
-        <div class="rotation-info">
-          <div class="dir" id="dir">—</div>
-          <div id="ticks">0 ticks</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>All Button Endpoints</h2>
-      <div class="buttons" id="buttons"></div>
-      <h2 style="margin-top:24px">Target Light Status</h2>
-      <div id="lights"></div>
-    </div>
-
-    <div class="panel" style="grid-column: 1 / -1">
       <h2>Event Log</h2>
       <div class="log" id="log"></div>
     </div>
@@ -281,234 +333,391 @@ const DEFAULT_HA_WS_URL = "ws://10.0.0.50:8123/api/websocket";
 const TOKEN_STORAGE_KEY = "bilresa_debug_ha_token";
 const URL_STORAGE_KEY   = "bilresa_debug_ha_ws_url";
 
-const authPanel   = document.getElementById("auth-panel");
-const mainGrid    = document.getElementById("main-grid");
-const urlInput    = document.getElementById("url-input");
-const tokenInput  = document.getElementById("token-input");
-const rememberCb  = document.getElementById("remember");
-const connectBtn  = document.getElementById("connect-btn");
-const forgetWrap  = document.getElementById("forget-wrap");
-const forgetLink  = document.getElementById("forget");
+const authPanel    = document.getElementById("auth-panel");
+const mainEl       = document.getElementById("main");
+const remotesEl    = document.getElementById("remotes-container");
+const urlInput     = document.getElementById("url-input");
+const tokenInput   = document.getElementById("token-input");
+const rememberCb   = document.getElementById("remember");
+const connectBtn   = document.getElementById("connect-btn");
+const forgetWrap   = document.getElementById("forget-wrap");
+const forgetLink   = document.getElementById("forget");
+const statusEl     = document.getElementById("status");
+const logEl        = document.getElementById("log");
 
 urlInput.placeholder = DEFAULT_HA_WS_URL;
 
-const statusEl = document.getElementById("status");
-const logEl    = document.getElementById("log");
-const btnsEl   = document.getElementById("buttons");
-const lightsEl = document.getElementById("lights");
-const wheelEl  = document.getElementById("wheel");
-const dirEl    = document.getElementById("dir");
-const ticksEl  = document.getElementById("ticks");
+// button endpoint role: 1/4/7 = CW rotation, 2/5/8 = CCW rotation, 3/6/9 = dot press
+const ROLE = {
+  1: { dot: 1, kind: "rotation", dir: "CW",  label: "Dot 1 · CW"  },
+  2: { dot: 1, kind: "rotation", dir: "CCW", label: "Dot 1 · CCW" },
+  3: { dot: 1, kind: "press",                 label: "Dot 1 · Press"},
+  4: { dot: 2, kind: "rotation", dir: "CW",  label: "Dot 2 · CW"  },
+  5: { dot: 2, kind: "rotation", dir: "CCW", label: "Dot 2 · CCW" },
+  6: { dot: 2, kind: "press",                 label: "Dot 2 · Press"},
+  7: { dot: 3, kind: "rotation", dir: "CW",  label: "Dot 3 · CW"  },
+  8: { dot: 3, kind: "rotation", dir: "CCW", label: "Dot 3 · CCW" },
+  9: { dot: 3, kind: "press",                 label: "Dot 3 · Press"},
+};
 
-// button state
-const BTN_COUNT = 9;
-const btnStates = {};
-for (let i = 1; i <= BTN_COUNT; i++) {
-  btnStates[i] = { et: "—", ts: "—", hitAt: 0 };
-  const box = document.createElement("div");
-  box.className = "btn-box";
-  box.id = `btn-${i}`;
-  box.innerHTML = `<div class="name">button_${i}</div><div class="et">—</div><div class="ts">—</div>`;
-  btnsEl.appendChild(box);
-}
-
-const TARGET_LIGHTS = ["light.sofa_lamp", "light.side_lamp", "light.floor_lamp"];
-TARGET_LIGHTS.forEach(eid => {
-  const row = document.createElement("div");
-  row.className = "target-info";
-  row.innerHTML = `<span class="lbl">${eid}</span><span class="val" id="lt-${eid.replace(/\./g,'_')}">—</span>`;
-  lightsEl.appendChild(row);
-});
-
-let wheelRot = 0;
-
-function addLog(kind, msg) {
-  const entry = document.createElement("div");
-  entry.className = `log-entry ${kind}`;
-  const now = new Date();
-  const t = now.toLocaleTimeString([], {hour12: false}) + "." + String(now.getMilliseconds()).padStart(3,'0');
-  entry.innerHTML = `<span class="t">${t}</span><span class="m">${msg}</span>`;
-  logEl.insertBefore(entry, logEl.firstChild);
-  while (logEl.children.length > 200) logEl.removeChild(logEl.lastChild);
-}
+const remotes = new Map();          // device_id → RemoteState
+const entityToDevice = new Map();   // entity_id → device_id
+const entityToButton = new Map();   // entity_id → button number (1..9)
 
 function setStatus(text, cls) {
   statusEl.textContent = text;
   statusEl.className = "status " + (cls || "");
 }
 
-// Map: rotation endpoint → {dot, direction}
-const ROT_MAP = {
-  1: { dot: 1, dir: "CW"  },
-  2: { dot: 1, dir: "CCW" },
-  4: { dot: 2, dir: "CW"  },
-  5: { dot: 2, dir: "CCW" },
-  7: { dot: 3, dir: "CW"  },
-  8: { dot: 3, dir: "CCW" },
-};
-
-function refreshActiveDot() {
-  // Most recent rotation event wins — that endpoint's dot is active.
-  let best = null;
-  for (const n of Object.keys(ROT_MAP)) {
-    const ts = btnStates[n].hitAt;
-    if (ts > 0 && (!best || ts > best.ts)) best = { dot: ROT_MAP[n].dot, ts };
-  }
-  document.querySelectorAll(".dot").forEach(d => d.classList.remove("active"));
-  if (best) document.getElementById(`dot-${best.dot}`).classList.add("active");
+function addLog(kind, remoteLabel, msg) {
+  const entry = document.createElement("div");
+  entry.className = `log-entry ${kind}`;
+  const now = new Date();
+  const t = now.toLocaleTimeString([], {hour12: false}) + "." + String(now.getMilliseconds()).padStart(3,'0');
+  entry.innerHTML = `<span class="t">${t}</span><span class="r">${remoteLabel || ""}</span><span class="m">${msg}</span>`;
+  logEl.insertBefore(entry, logEl.firstChild);
+  while (logEl.children.length > 200) logEl.removeChild(logEl.lastChild);
 }
 
-function flashDot(n) {
-  const el = document.getElementById(`dot-${n}`);
+function buildRemotePanel(device, entities) {
+  // entities: { 1: "event.xxx_button_1", ..., 9: "event.xxx_button_9" }
+  const name = device.name_by_user || device.name || "BILRESA scroll wheel";
+  const section = document.createElement("section");
+  section.className = "panel";
+  section.dataset.deviceId = device.id;
+
+  const subtitle = Object.values(entities)[0]?.replace(/_button_\d+(_\d+)?$/, "") || "";
+
+  section.innerHTML = `
+    <header class="remote-header">
+      <h2>${name}</h2>
+      <span class="subtitle">${subtitle}</span>
+      <span class="device-id">${device.id.slice(0, 12)}…</span>
+    </header>
+    <div class="remote-body">
+      <div>
+        <div class="dots">
+          <div class="dot" data-dot="1">1<div class="label">btn 1/2/3</div></div>
+          <div class="dot" data-dot="2">2<div class="label">btn 4/5/6</div></div>
+          <div class="dot" data-dot="3">3<div class="label">btn 7/8/9</div></div>
+        </div>
+        <div class="rotation" style="margin-top:32px">
+          <div class="wheel"></div>
+          <div class="rotation-info">
+            <div class="dir">—</div>
+            <div class="ticks">0 ticks</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="buttons"></div>
+      </div>
+    </div>
+    <div class="targets">
+      <h3>Detected Target Lights <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#6e7681;">(auto-attributed from state changes within 750ms of a BILRESA event)</span></h3>
+      <div class="target-list">
+        <div class="target-row" data-dot="1"><span class="dot-lbl">Dot 1</span><span class="eid empty">(not yet detected)</span><span class="state-info"></span></div>
+        <div class="target-row" data-dot="2"><span class="dot-lbl">Dot 2</span><span class="eid empty">(not yet detected)</span><span class="state-info"></span></div>
+        <div class="target-row" data-dot="3"><span class="dot-lbl">Dot 3</span><span class="eid empty">(not yet detected)</span><span class="state-info"></span></div>
+      </div>
+    </div>
+  `;
+  remotesEl.appendChild(section);
+
+  const buttonsEl = section.querySelector(".buttons");
+  const btnEls = {};
+  for (let i = 1; i <= 9; i++) {
+    const role = ROLE[i];
+    const box = document.createElement("div");
+    box.className = "btn-box";
+    box.innerHTML = `
+      <div class="name">button_${i}</div>
+      <div class="role">${role.label}</div>
+      <div class="et">—</div>
+      <div class="ts">—</div>
+    `;
+    buttonsEl.appendChild(box);
+    btnEls[i] = box;
+  }
+
+  return {
+    id: device.id,
+    name,
+    entities,               // 1..9 → entity_id
+    btnStates: Object.fromEntries(
+      Array.from({length: 9}, (_, i) => [i+1, { et: "—", ts: "—", hitAt: 0 }])
+    ),
+    detected: { 1: null, 2: null, 3: null }, // dot → { entity_id }
+    wheelRot: 0,
+    els: {
+      section,
+      dots: Array.from(section.querySelectorAll(".dot")),
+      btnEls,
+      wheel: section.querySelector(".wheel"),
+      dir: section.querySelector(".rotation-info .dir"),
+      ticks: section.querySelector(".rotation-info .ticks"),
+      targetRows: {
+        1: section.querySelector('.target-row[data-dot="1"]'),
+        2: section.querySelector('.target-row[data-dot="2"]'),
+        3: section.querySelector('.target-row[data-dot="3"]'),
+      },
+    },
+  };
+}
+
+// Most recent trigger across all remotes — used to attribute light state
+// changes to whichever remote/dot just fired.
+let lastTrigger = null;
+const ATTR_WINDOW_MS = 750;
+
+function renderDetectedTarget(remote, dot, eid, oldState, newState) {
+  const row = remote.els.targetRows[dot];
+  if (!row) return;
+  const eidEl   = row.querySelector(".eid");
+  const stateEl = row.querySelector(".state-info");
+
+  // Update the stored entity_id for this dot (keep the latest detection)
+  if (!remote.detected[dot] || remote.detected[dot].entity_id !== eid) {
+    remote.detected[dot] = { entity_id: eid };
+  }
+
+  eidEl.textContent = eid;
+  eidEl.classList.remove("empty");
+
+  const nbr = (newState.attributes || {}).brightness;
+  const obr = (oldState && oldState.attributes) ? oldState.attributes.brightness : null;
+  const pct = nbr != null ? Math.round((nbr / 255) * 100) : null;
+  let info;
+  if (newState.state === "unavailable") info = "unavailable";
+  else if (newState.state === "on") info = pct != null ? `on · ${pct}%` : "on";
+  else info = newState.state;
+  if (obr != null && nbr != null && obr !== nbr) {
+    info += `  (br ${obr}→${nbr})`;
+  } else if ((oldState && oldState.state) && oldState.state !== newState.state) {
+    info += `  (${oldState.state}→${newState.state})`;
+  }
+  stateEl.textContent = info;
+  stateEl.className = "state-info " + (newState.state === "unavailable" ? "unavailable" : newState.state === "on" ? "on" : "");
+
+  row.classList.remove("flash");
+  void row.offsetWidth;
+  row.classList.add("flash");
+}
+
+function refreshActiveDot(remote) {
+  let best = null;
+  for (let n = 1; n <= 9; n++) {
+    if (ROLE[n].kind !== "rotation") continue;
+    const ts = remote.btnStates[n].hitAt;
+    if (ts > 0 && (!best || ts > best.ts)) best = { dot: ROLE[n].dot, ts };
+  }
+  remote.els.dots.forEach(d => d.classList.remove("active"));
+  if (best) remote.els.dots[best.dot - 1].classList.add("active");
+}
+
+function flashDot(remote, dot) {
+  const el = remote.els.dots[dot - 1];
   el.classList.add("flash");
   setTimeout(() => el.classList.remove("flash"), 300);
 }
 
-function handleButtonEvent(n, et) {
-  btnStates[n].et = et;
-  btnStates[n].ts = new Date().toLocaleTimeString([], {hour12: false});
-  btnStates[n].hitAt = Date.now();
+function handleButtonEvent(remote, n, et) {
+  const now = Date.now();
+  remote.btnStates[n].et = et;
+  remote.btnStates[n].ts = new Date(now).toLocaleTimeString([], {hour12: false});
+  remote.btnStates[n].hitAt = now;
 
-  const box = document.getElementById(`btn-${n}`);
+  lastTrigger = { remote, dot: ROLE[n].dot, kind: ROLE[n].kind, at: now };
+
+  const box = remote.els.btnEls[n];
   box.querySelector(".et").textContent = et;
-  box.querySelector(".ts").textContent = btnStates[n].ts;
+  box.querySelector(".ts").textContent = remote.btnStates[n].ts;
   box.classList.add("hit");
   setTimeout(() => box.classList.remove("hit"), 400);
 
-  if (ROT_MAP[n]) {
-    // rotation — the endpoint tells us both the dot and the direction
-    const { dot, dir } = ROT_MAP[n];
+  const role = ROLE[n];
+  if (role.kind === "rotation") {
     const ticks = parseInt(et.split("_").pop()) || 1;
-    wheelEl.classList.remove("cw","ccw");
-    void wheelEl.offsetWidth;
-    wheelEl.classList.add(dir.toLowerCase());
-    wheelRot += (dir === "CW" ? 1 : -1) * ticks * 20;
-    wheelEl.style.transform = `rotate(${wheelRot}deg)`;
-    dirEl.textContent = `${dir} · Dot ${dot}`;
-    dirEl.className = "dir " + dir.toLowerCase();
-    ticksEl.textContent = `${ticks} tick${ticks>1?'s':''}`;
-    flashDot(dot);
-    refreshActiveDot();
-    addLog("rot", `Rotate <b>${dir}</b> ×${ticks} on <b>Dot ${dot}</b> (button_${n} ${et})`);
-    setTimeout(() => { wheelEl.classList.remove("cw","ccw"); }, 800);
-  } else if (n === 3 || n === 6 || n === 9) {
-    // physical press / long-press buttons (one per dot)
-    const dot = (n + 3) / 3 | 0;  // 3→1, 6→2, 9→3
-    const dotFromButton = { 3: 1, 6: 2, 9: 3 }[n];
-    flashDot(dotFromButton);
-    addLog("dot", `Dot ${dotFromButton} press (button_${n} ${et})`);
+    const { wheel, dir: dirEl, ticks: ticksEl } = remote.els;
+    wheel.classList.remove("cw", "ccw");
+    void wheel.offsetWidth;
+    wheel.classList.add(role.dir.toLowerCase());
+    remote.wheelRot += (role.dir === "CW" ? 1 : -1) * ticks * 20;
+    wheel.style.transform = `rotate(${remote.wheelRot}deg)`;
+    dirEl.textContent = `${role.dir} · Dot ${role.dot}`;
+    dirEl.className = "dir " + role.dir.toLowerCase();
+    ticksEl.textContent = `${ticks} tick${ticks > 1 ? 's' : ''}`;
+    flashDot(remote, role.dot);
+    refreshActiveDot(remote);
+    addLog("rot", remote.name, `Rotate <b>${role.dir}</b> ×${ticks} on <b>Dot ${role.dot}</b> (button_${n} ${et})`);
+    setTimeout(() => wheel.classList.remove("cw", "ccw"), 800);
   } else {
-    addLog("", `button_${n} ${et}`);
+    flashDot(remote, role.dot);
+    addLog("press", remote.name, `Dot ${role.dot} press (button_${n} ${et})`);
   }
 }
 
-function handleLightState(eid, state, attrs) {
-  const el = document.getElementById(`lt-${eid.replace(/\./g,'_')}`);
-  if (!el) return;
-  const br = attrs.brightness;
-  const pct = br != null ? Math.round((br/255)*100) : null;
-  el.textContent = state === "unavailable" ? "unavailable"
-    : state === "on" ? (pct != null ? `on · ${pct}%` : "on")
-    : state;
-  el.className = "val " + (state === "unavailable" ? "unavailable" : state === "on" ? "active" : "");
+function seedInitialStates(states) {
+  for (const s of states) {
+    if (!s.entity_id.startsWith("event.")) continue;
+    const deviceId = entityToDevice.get(s.entity_id);
+    if (!deviceId) continue;
+    const remote = remotes.get(deviceId);
+    if (!remote) continue;
+    const n = entityToButton.get(s.entity_id);
+    if (!n) continue;
+    if (s.state && s.state !== "unknown" && s.state !== "unavailable") {
+      const et = s.attributes.event_type || "—";
+      remote.btnStates[n] = {
+        et,
+        ts: new Date(s.state).toLocaleTimeString([], {hour12: false}),
+        hitAt: new Date(s.state).getTime(),
+      };
+      const box = remote.els.btnEls[n];
+      box.querySelector(".et").textContent = et;
+      box.querySelector(".ts").textContent = remote.btnStates[n].ts;
+    }
+    refreshActiveDot(remote);
+  }
 }
 
-// --- WebSocket ---
-let msgId = 1;
-
+// --- WebSocket with id-indexed response handling ---
 function connect(url, token) {
   authPanel.hidden = true;
-  mainGrid.hidden = false;
+  mainEl.hidden = false;
   forgetWrap.hidden = false;
   setStatus(`connecting to ${url}…`);
 
   const ws = new WebSocket(url);
+  let msgId = 1;
+  const pending = new Map(); // id → resolve function
 
-  ws.addEventListener("open", () => setStatus("connected, authenticating…"));
+  function rpc(payload) {
+    const id = msgId++;
+    ws.send(JSON.stringify({ id, ...payload }));
+    return new Promise(resolve => pending.set(id, resolve));
+  }
+
+  ws.addEventListener("open",  () => setStatus("connected, authenticating…"));
   ws.addEventListener("error", e => setStatus("error: " + (e.message || "websocket error"), "err"));
   ws.addEventListener("close", () => setStatus("disconnected", "err"));
 
-  ws.addEventListener("message", evt => {
+  ws.addEventListener("message", async evt => {
     const msg = JSON.parse(evt.data);
+
     if (msg.type === "auth_required") {
       ws.send(JSON.stringify({ type: "auth", access_token: token }));
-    } else if (msg.type === "auth_ok") {
-    setStatus("connected — listening for BILRESA events", "ok");
-    // Subscribe to state_changed
-    ws.send(JSON.stringify({ id: msgId++, type: "subscribe_events", event_type: "state_changed" }));
-    // Fetch initial states
-    ws.send(JSON.stringify({ id: msgId++, type: "get_states" }));
-  } else if (msg.type === "auth_invalid") {
-    setStatus("auth failed: " + msg.message, "err");
-  } else if (msg.type === "result" && Array.isArray(msg.result)) {
-    // initial states
-    msg.result.forEach(s => {
-      const m = s.entity_id.match(/^event\.bilresa_scroll_wheel_button_(\d+)$/);
-      if (m && s.state && s.state !== "unknown" && s.state !== "unavailable") {
-        const n = parseInt(m[1]);
-        const et = s.attributes.event_type;
-        btnStates[n].et = et || "—";
-        btnStates[n].ts = new Date(s.state).toLocaleTimeString([], {hour12:false});
-        btnStates[n].hitAt = new Date(s.state).getTime();
-        const box = document.getElementById(`btn-${n}`);
-        box.querySelector(".et").textContent = btnStates[n].et;
-        box.querySelector(".ts").textContent = btnStates[n].ts;
+      return;
+    }
+    if (msg.type === "auth_invalid") {
+      setStatus("auth failed: " + msg.message, "err");
+      return;
+    }
+    if (msg.type === "auth_ok") {
+      setStatus("authenticated — discovering BILRESA devices…", "ok");
+      // Kick off discovery and subscription in parallel
+      discoverAndSubscribe();
+      return;
+    }
+    if (msg.type === "result" && pending.has(msg.id)) {
+      pending.get(msg.id)(msg.result);
+      pending.delete(msg.id);
+      return;
+    }
+    if (msg.type === "event" && msg.event && msg.event.event_type === "state_changed") {
+      handleStateChanged(msg.event.data);
+    }
+  });
+
+  async function discoverAndSubscribe() {
+    const [devices, entities] = await Promise.all([
+      rpc({ type: "config/device_registry/list" }),
+      rpc({ type: "config/entity_registry/list" }),
+    ]);
+
+    const bilresaDevices = devices.filter(d =>
+      (d.manufacturer || "").includes("IKEA") &&
+      (d.model || "").toLowerCase().includes("bilresa")
+    );
+
+    if (bilresaDevices.length === 0) {
+      remotesEl.innerHTML = `<div class="panel empty">No BILRESA scroll wheel devices found in this Home Assistant instance.</div>`;
+      setStatus("connected — no BILRESA devices", "ok");
+      return;
+    }
+
+    // For each BILRESA, find its 9 event entities by device_id
+    for (const dev of bilresaDevices) {
+      const devEntities = entities.filter(e => e.device_id === dev.id && e.entity_id.startsWith("event."));
+      const byNum = {};
+      for (const e of devEntities) {
+        // Button number from original_name like "Button (N)" is most reliable
+        const m = (e.original_name || e.entity_id).match(/\((\d+)\)|_button_(\d+)(?:_\d+)?$/);
+        const num = m ? parseInt(m[1] || m[2]) : null;
+        if (num && num >= 1 && num <= 9) {
+          byNum[num] = e.entity_id;
+          entityToDevice.set(e.entity_id, dev.id);
+          entityToButton.set(e.entity_id, num);
+        }
       }
-      if (TARGET_LIGHTS.includes(s.entity_id)) handleLightState(s.entity_id, s.state, s.attributes);
-    });
-    refreshActiveDot();
-    addLog("", `loaded initial state for ${msg.result.length} entities`);
-  } else if (msg.type === "event" && msg.event && msg.event.event_type === "state_changed") {
-    const d = msg.event.data;
+      if (Object.keys(byNum).length === 9) {
+        const remote = buildRemotePanel(dev, byNum);
+        remotes.set(dev.id, remote);
+      } else {
+        addLog("", dev.name || dev.id, `skipped — only ${Object.keys(byNum).length} / 9 event entities found`);
+      }
+    }
+
+    setStatus(`connected — watching ${remotes.size} remote${remotes.size === 1 ? "" : "s"}`, "ok");
+
+    // Subscribe to state_changed and seed initial states
+    rpc({ type: "subscribe_events", event_type: "state_changed" });
+    const states = await rpc({ type: "get_states" });
+    seedInitialStates(states);
+    addLog("", "", `discovered ${bilresaDevices.length} BILRESA device${bilresaDevices.length === 1 ? "" : "s"}, seeded ${states.length} states`);
+  }
+
+  function handleStateChanged(d) {
     const eid = d.entity_id;
     const ns = d.new_state;
     if (!ns) return;
-    const m = eid.match(/^event\.bilresa_scroll_wheel_button_(\d+)$/);
-    if (m) {
-      handleButtonEvent(parseInt(m[1]), ns.attributes.event_type);
+
+    // Light state change — maybe correlate with a recent BILRESA trigger
+    if (eid.startsWith("light.")) {
+      if (lastTrigger && Date.now() - lastTrigger.at <= ATTR_WINDOW_MS) {
+        renderDetectedTarget(lastTrigger.remote, lastTrigger.dot, eid, d.old_state, ns);
+        addLog("", lastTrigger.remote.name, `⟶ <b>${eid}</b> changed (dot ${lastTrigger.dot})`);
+      }
       return;
     }
-    const mp = eid.match(/^sensor\.bilresa_scroll_wheel_current_switch_position_(\d+)$/);
-    if (mp) {
-      addLog("sens", `position_${mp[1]} → ${ns.state}`);
-      return;
-    }
-    if (TARGET_LIGHTS.includes(eid)) {
-      handleLightState(eid, ns.state, ns.attributes);
-      addLog("", `${eid} → ${ns.state}${ns.attributes.brightness ? ` (br=${ns.attributes.brightness})` : ""}`);
-      return;
-    }
-    if (eid === "automation.bilresa") {
-      addLog("", `automation fired at ${ns.attributes.last_triggered}`);
-    }
+
+    // BILRESA event entity?
+    const deviceId = entityToDevice.get(eid);
+    if (!deviceId) return;
+    const remote = remotes.get(deviceId);
+    if (!remote) return;
+    const n = entityToButton.get(eid);
+    if (!n) return;
+    const et = ns.attributes.event_type;
+    if (!et) return;
+    handleButtonEvent(remote, n, et);
   }
-  });
 }
 
-// --- Bootstrap: load url/token from storage or prompt user ---
-function lsGet(key) {
-  try { return localStorage.getItem(key); } catch (e) { return null; }
-}
-function lsSet(key, value) {
-  try { localStorage.setItem(key, value); } catch (e) {}
-}
-function lsRemove(key) {
-  try { localStorage.removeItem(key); } catch (e) {}
-}
-
-function startWithCredentials(url, token, remember) {
-  if (remember) {
-    lsSet(TOKEN_STORAGE_KEY, token);
-    lsSet(URL_STORAGE_KEY, url);
-  }
-  connect(url, token);
-}
+// --- Credential bootstrap ---
+function lsGet(k)    { try { return localStorage.getItem(k); } catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch {} }
+function lsRemove(k) { try { localStorage.removeItem(k); } catch {} }
 
 connectBtn.addEventListener("click", () => {
   const url = urlInput.value.trim() || DEFAULT_HA_WS_URL;
   const token = tokenInput.value.trim();
   if (!token) { tokenInput.focus(); return; }
-  startWithCredentials(url, token, rememberCb.checked);
+  if (rememberCb.checked) {
+    lsSet(TOKEN_STORAGE_KEY, token);
+    lsSet(URL_STORAGE_KEY, url);
+  }
+  connect(url, token);
 });
 
 [urlInput, tokenInput].forEach(el => {
@@ -523,7 +732,6 @@ forgetLink.addEventListener("click", () => {
 
 const savedToken = lsGet(TOKEN_STORAGE_KEY);
 const savedUrl   = lsGet(URL_STORAGE_KEY) || DEFAULT_HA_WS_URL;
-
 urlInput.value = savedUrl;
 
 if (savedToken) {
