@@ -8,8 +8,11 @@ The `tools/` folder wraps the common HA websocket calls. Credentials come from `
 
 | Command | Use for |
 |---|---|
+| `tools/entity_ids.py [name] [--domain D] [--area A] [--available]` | Look up entity IDs by friendly name, area, or domain — **use this before hardcoding any entity_id** |
+| `tools/push_automation.py <file.yaml>` | Push a local automation YAML to HA via REST API + reload. File must have a top-level `id:` field. Supports single dict or list of automations. |
 | `tools/push_blueprint.py <file.yaml>` | Push a local blueprint + reload (handles the `source_url` cache trap) |
-| `tools/reload_automations.py` | Reload without pushing |
+| `tools/zha_listen.py [--ieee ADDR] [-t SECS]` | Live-print ZHA events — **run this before writing a ZHA trigger** to capture the real `command` and `args` shape. `--ieee` is repeatable for multiple devices. |
+| `tools/reload_automations.py` | Reload automations without pushing anything |
 | `tools/system_log.py [substr] [-l ERROR]` | Filter HA's system log — **first stop for debugging** |
 | `tools/watch_events.py [-f substr] [--services light]` | Live-print `state_changed` + `call_service` |
 
@@ -70,6 +73,35 @@ For anything outside these, use the `HA` context manager in `tools/ha.py` (`ha.r
 **HA does not re-fetch `source_url` blueprints automatically.** Once imported, the blueprint lives at `/config/blueprints/automation/<namespace>/<file>.yaml`. Pushing to GitHub does nothing — HA keeps serving the cached copy.
 
 Use `tools/push_blueprint.py <file.yaml>` — it calls `blueprint/save` with `allow_override: True` (HA rejects the call without that flag) and reloads automations. Existing automation instances keep their saved input values across blueprint updates, so changing a default doesn't propagate to them.
+
+## ZHA automation workflow
+
+**Always capture a live event before writing a trigger.** ZHA event shapes vary by device — the `command` field is device-specific and cannot be guessed from documentation alone.
+
+1. Find device IEEE addresses: `tools/entity_ids.py --domain switch` or query `config/device_registry/list` filtered by model
+2. Capture the real event: `tools/zha_listen.py --ieee <addr> -t 20` — press the button while it listens
+3. Write the trigger matching on `device_ieee` + `command` in `event_data` — this is exact-match, no condition needed:
+   ```yaml
+   trigger:
+     platform: event
+     event_type: zha_event
+     event_data:
+       device_ieee: "54:ef:44:10:00:76:df:30"
+       command: "41_single"   # from zha_listen.py output
+   ```
+4. Push: `tools/push_automation.py <file.yaml>`
+
+**Aqara H1 Double Rocker (`lumi.switch.l2aeu1`) specifics:**
+- IEEE from `config/device_registry/list` filtering on `model: lumi.switch.l2aeu1`
+- Commands follow the pattern `<button>_<press_type>`: `41_single`, `41_double`, `42_single`, `42_double`
+  - `41` = left button, `42` = right button
+- Decoupled mode (set in ZHA device options) prevents the relay from responding to physical presses — the ZHA event still fires regardless
+- Do **not** use `command: attribute_updated` — that is the internal cluster event name, not what appears in `zha_event`
+
+**push_automation.py vs push_blueprint.py:**
+- `push_automation.py` uses the REST API (`POST /api/config/automation/config/{id}`) — for standalone automations
+- `push_blueprint.py` uses the WebSocket `blueprint/save` command — for reusable blueprints only
+- Automations pushed via REST appear in the HA UI under Settings → Automations and can be edited there
 
 ## Event entities (Matter / Zigbee buttons)
 
